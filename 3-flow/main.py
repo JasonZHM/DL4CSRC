@@ -1,5 +1,6 @@
 import torch 
 import torch.nn as nn
+from torch.nn.utils.clip_grad import clip_grad_norm_
 
 import numpy as np 
 import matplotlib.pyplot as plt 
@@ -80,6 +81,8 @@ if __name__=='__main__':
         model.zero_grad()
         energy.backward()
         optimizer.step()
+
+        # clip_grad_norm_(params, 1e1)
         
         with torch.no_grad():
             print (e, loss.item(), energy.item())
@@ -104,5 +107,5 @@ if __name__=='__main__':
     np_losses = np.array(np_losses)
     fig = plt.figure(figsize=(8,8), facecolor='white')
     plt.ioff()
-    plt.plot(np_losses)
+    plt.plot(np_losses[50:])
     plt.show()

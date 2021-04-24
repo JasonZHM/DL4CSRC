@@ -79,13 +79,15 @@ class MongeAmpereFlow(nn.Module):
         # x = x + dx
         # logp = logp + dlogp
 
+        # return x, logp
+
         #torchdiffeq
         x_t, logp_t = odeint(
             self.odeModule,
             (x, logp),
             torch.tensor([0, sign*Nsteps]).type(torch.float32).to(self.device),
-            atol=1e-5,
-            rtol=1e-5,
+            atol=1e-7,
+            rtol=1e-7,
             method='dopri5',
             )
                 
