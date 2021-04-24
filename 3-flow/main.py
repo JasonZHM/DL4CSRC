@@ -8,14 +8,17 @@ from flow import MongeAmpereFlow
 import net 
 import objectives
 
+T = 0.1
+
 if __name__=='__main__':
     import argparse
     parser = argparse.ArgumentParser(description='')
     parser.add_argument("-cuda", type=int, default=-1, help="use GPU")
     parser.add_argument("-net", default='Simple_MLP', choices=['Simple_MLP', 'MLP'], 
                                                        help="network architecture")
-    parser.add_argument("-target", default='Ring2D', 
-                        choices=['Ring2D', 'Ring5', 'Wave', 'Gaussian', 'Mog2'], help="target distribution")
+    parser.add_argument("-target", default='Wave', 
+                        choices=['Ring2D', 'Ring5', 'Wave', 'Gaussian', 'Mog2', 'electron'], help="target distribution")
+    parser.add_argument("-numElectron", type=int, default=2)
     args = parser.parse_args()
     device = torch.device("cpu" if args.cuda<0 else "cuda:"+str(args.cuda))
 
@@ -38,11 +41,14 @@ if __name__=='__main__':
         plt.xlim(xlimits)
         plt.ylim(ylimits)
 
-    target = getattr(objectives, args.target)()
+    if args.target=='electron':
+        target = getattr(objectives, args.target)(args.numElectron)
+    else: 
+        target = getattr(objectives, args.target)()
     target.to(device)
 
     epsilon = 0.1 
-    Nsteps = 50
+    Nsteps = 20
     batch_size = 1024
 
     # Set up figure.
@@ -51,7 +57,10 @@ if __name__=='__main__':
     plt.ion()
     plt.show(block=False)
 
-    net = getattr(net, args.net)(dim=2, hidden_size=32, device=device)
+    if args.target=='electron':
+        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=32, device=device)
+    else: 
+        net = getattr(net, args.net)(dim=2, hidden_size=32, device=device)
     model = MongeAmpereFlow(net, epsilon, Nsteps, device=device)
     model.to(device)
 
@@ -63,24 +72,31 @@ if __name__=='__main__':
     print ('total nubmer of trainable parameters:', nparams)
     
     np_losses = []
-    for e in range(100):
+    for e in range(1000):
         x, logp = model.sample(batch_size)
-        loss = logp.mean() - target(x).mean() 
+        loss = logp.mean() + target(x).mean()/T
+        energy = target(x).mean()
         
         model.zero_grad()
-        loss.backward()
+        energy.backward()
         optimizer.step()
         
         with torch.no_grad():
-            print (e, loss.item())
+            print (e, loss.item(), energy.item())
             np_losses.append([loss.item()])
 
             plt.cla()
-            plot_isocontours(ax, target, alpha=0.5)
-            plot_isocontours(ax, model.net) # Breiner potential 
+            
+            if args.target!='electron':  
+                plot_isocontours(ax, target, alpha=0.5)
+                plot_isocontours(ax, model.net) # Breiner potential 
 
             samples = x.cpu().detach().numpy()
-            plt.plot(samples[:, 0], samples[:,1],'o', alpha=0.8)
+            if args.target=='electron':
+                for i in range(0, args.numElectron):
+                    plt.plot(samples[:, i], samples[:,i+1],'o', alpha=0.8)
+            else:
+                plt.plot(samples[:, 0], samples[:,1],'o', alpha=0.8)
 
             plt.draw()
             plt.pause(0.01)

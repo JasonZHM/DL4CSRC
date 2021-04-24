@@ -3,6 +3,31 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
+from torchdiffeq import odeint
+
+
+class odeModule(nn.Module):
+    # for torchdiffeq
+    def __init__(self, net, device='cpu', name=None, checkpoint=False):
+        super().__init__()
+        self.device = device
+        if name is None:
+            self.name = 'odeModule'
+        else:
+            self.name = name
+        self.net = net 
+        self.checkpoint = checkpoint
+    
+    def forward(self, t, states):
+        # states=(x, logp)
+        x = states[0]
+        logp = states[1]
+        if self.checkpoint:
+            return self.checkpoint(self.net.grad, x), -self.checkpoint(self.net.laplacian, x)
+        else:
+            return self.net.grad(x), -self.net.laplacian(x)
+
+
 
 class MongeAmpereFlow(nn.Module):
     '''
@@ -20,35 +45,51 @@ class MongeAmpereFlow(nn.Module):
             self.name = name
         self.net = net 
         self.dim = net.dim
-        self.epsilon = epsilon 
+        # self.epsilon = epsilon 
         self.Nsteps = Nsteps
         self.checkpoint = checkpoint
+        self.odeModule = odeModule(net, device, checkpoint=checkpoint)
 
     def integrate(self, x, logp, sign=1, epsilon=None, Nsteps=None):
         #default values
-        if epsilon is None:
-            epsilon = self.epsilon 
+        # if epsilon is None:
+        #     epsilon = self.epsilon 
         if Nsteps is None:
             Nsteps = self.Nsteps
 
         #integrate ODE for x and logp(x)
-        def ode(x):
-            if self.checkpoint:
-                return sign*epsilon*checkpoint(self.net.grad, x), -sign*epsilon*checkpoint(self.net.laplacian, x)
-            else:
-                return sign*epsilon*self.net.grad(x), -sign*epsilon*self.net.laplacian(x)
+        # def ode(x):
+        #     if self.checkpoint:
+        #         return sign*epsilon*checkpoint(self.net.grad, x), -sign*epsilon*checkpoint(self.net.laplacian, x)
+        #     else:
+        #         return sign*epsilon*self.net.grad(x), -sign*epsilon*self.net.laplacian(x)
 
-        #rk4
-        for step in range(Nsteps):
-            k1_x, k1_logp = ode(x)
-            k2_x, k2_logp = ode(x+k1_x/2)
-            k3_x, k3_logp = ode(x+k2_x/2)
-            k4_x, k4_logp = ode(x+k3_x)
+        #rk4 Runge-Kutta-4
+        # for step in range(Nsteps):
+        #     k1_x, k1_logp = ode(x)
+        #     k2_x, k2_logp = ode(x+k1_x/2)
+        #     k3_x, k3_logp = ode(x+k2_x/2)
+        #     k4_x, k4_logp = ode(x+k3_x)
 
-            x = x + (k1_x/6.+k2_x/3. + k3_x/3. +k4_x/6.) 
-            logp = logp + (k1_logp/6. + k2_logp/3. + k3_logp/3. + k4_logp/6.)
+        #     x = x + (k1_x/6.+k2_x/3. + k3_x/3. +k4_x/6.) 
+        #     logp = logp + (k1_logp/6. + k2_logp/3. + k3_logp/3. + k4_logp/6.)
+
+        # Euler
+        # dx, dlogp = ode(x)
+        # x = x + dx
+        # logp = logp + dlogp
+
+        #torchdiffeq
+        x_t, logp_t = odeint(
+            self.odeModule,
+            (x, logp),
+            torch.tensor([0, sign*Nsteps]).type(torch.float32).to(self.device),
+            atol=1e-5,
+            rtol=1e-5,
+            method='dopri5',
+            )
                 
-        return x, logp
+        return x_t[-1], logp_t[-1]
 
     def sample(self, batch_size):
         #initial value from Gaussian

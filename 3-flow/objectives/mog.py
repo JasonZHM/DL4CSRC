@@ -16,4 +16,4 @@ class Mog2(Target):
         pdf1 = torch.exp(-0.5* v1*v1) /np.sqrt(2*np.pi * 0.25)
         pdf2 = torch.exp(-0.5* v2*v2) /np.sqrt(2*np.pi * 0.25)
 
-        return torch.log(0.5*pdf1 + 0.5* pdf2)
+        return -torch.log(0.5*pdf1 + 0.5* pdf2)
