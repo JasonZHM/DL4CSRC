@@ -49,7 +49,7 @@ if __name__=='__main__':
     target.to(device)
 
     epsilon = 0.1 
-    Nsteps = 20
+    Nsteps = 10
     batch_size = 1024
 
     # Set up figure.
@@ -59,7 +59,7 @@ if __name__=='__main__':
     plt.show(block=False)
 
     if args.target=='electron':
-        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=32, device=device)
+        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=128, device=device)
     else: 
         net = getattr(net, args.net)(dim=2, hidden_size=32, device=device)
     model = MongeAmpereFlow(net, epsilon, Nsteps, device=device)

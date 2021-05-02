@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from itertools import permutations
 
 def lncosh(x):
     return -x + F.softplus(2.*x) - math.log(2.)
@@ -44,6 +45,14 @@ class MLP(nn.Module):
         self.activation2 = F.softplus
         self.activation2_prime = torch.sigmoid
         self.activation2_prime2 = sigmoid_prime
+
+        self.__init_parameters__()
+
+    def __init_parameters__(self):
+        # Initialize Parameters
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                m.weight.data.normal_(0,0.01)
 
     def forward(self, x):
         out = self.activation1(self.fc1(x))
@@ -102,7 +111,7 @@ class Simple_MLP(nn.Module):
     Single hidden layer MLP 
     with handcoded grad and laplacian function
     '''
-    def __init__(self, dim, hidden_size, use_z2=True, device='cpu', name=None):
+    def __init__(self, dim, hidden_size, use_z2=False, device='cpu', name=None):
         super(Simple_MLP, self).__init__()
         self.device = device
         if name is None:
@@ -122,28 +131,51 @@ class Simple_MLP(nn.Module):
             self.activation = F.softplus
             self.activation_prime = torch.sigmoid
             self.activation_prime2 = sigmoid_prime
+        
+        self.__init_parameters__()
+
+    def __init_parameters__(self):
+        # Initialize Parameters
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                m.weight.data.normal_(0,0.01)
 
     def forward(self, x):
-        out = self.activation(self.fc1(x))
-        out = self.fc2(out)
+        out = torch.zeros(len(x), 1)
+        for permute in permutations(list(range(int(self.dim/2)))):
+            xIndex = np.array(permute)*2
+            yIndex = xIndex + 1
+            index = np.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
+            xPerm = torch.index_select(x, dim=1, index=torch.LongTensor(index))
+            act = self.activation(self.fc1(xPerm))
+            act = self.fc2(act)
+            out = out + act
         return out.sum(dim=1)
 
     def grad(self, x):
         '''
         grad u(x)
         '''
-        out = self.activation_prime(self.fc1(x)) 
-        out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
-        out = torch.mm(out, self.fc1.weight)
-        return out
+        # out = self.activation_prime(self.fc1(x)) 
+        # out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
+        # out = torch.mm(out, self.fc1.weight)
+        # return out
+        with torch.enable_grad(): 
+            forward = self.forward(x)
+        return torch.autograd.grad(forward, x, grad_outputs=torch.ones(x.shape[0], device=x.device), create_graph=True)[0]
+
 
     def laplacian(self, x):
         '''
         div \cdot grad u(x)
         it is simple enough we code it by hand
         '''
-        out = self.activation_prime2(self.fc1(x)) 
-        out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
-        out = torch.mm(out, self.fc1.weight**2)
-        return out.sum(dim=1)
+        # out = self.activation_prime2(self.fc1(x)) 
+        # out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
+        # out = torch.mm(out, self.fc1.weight**2)
+        # return out.sum(dim=1)
+        grad = self.grad(x)
+        z = torch.randn(x.shape[0], self.dim, device=x.device)
+        grad2_z = torch.autograd.grad(grad, x, grad_outputs=z, create_graph=True)[0]
+        return (grad2_z * z).sum(dim=1)
     
