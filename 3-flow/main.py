@@ -20,6 +20,7 @@ if __name__=='__main__':
     parser.add_argument("-target", default='Wave', 
                         choices=['Ring2D', 'Ring5', 'Wave', 'Gaussian', 'Mog2', 'electron'], help="target distribution")
     parser.add_argument("-numElectron", type=int, default=2)
+    parser.add_argument("-testPermSym", type=bool, default=False)
     args = parser.parse_args()
     device = torch.device("cpu" if args.cuda<0 else "cuda:"+str(args.cuda))
 
@@ -59,7 +60,7 @@ if __name__=='__main__':
     plt.show(block=False)
 
     if args.target=='electron':
-        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=128, device=device)
+        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=128, device=device, permSym=True)
     else: 
         net = getattr(net, args.net)(dim=2, hidden_size=32, device=device)
     model = MongeAmpereFlow(net, epsilon, Nsteps, device=device)
@@ -86,6 +87,10 @@ if __name__=='__main__':
         
         with torch.no_grad():
             print (e, loss.item(), energy.item())
+            if args.testPermSym:
+                xtest, logptest = model.sample(10)
+                print ('Checking Permutation Symmetry: ', list(map(float, model.check_permSym(xtest, logptest))))
+            
             np_losses.append([loss.item()])
 
             plt.cla()

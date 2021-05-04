@@ -111,9 +111,10 @@ class Simple_MLP(nn.Module):
     Single hidden layer MLP 
     with handcoded grad and laplacian function
     '''
-    def __init__(self, dim, hidden_size, use_z2=False, device='cpu', name=None):
+    def __init__(self, dim, hidden_size, use_z2=False, device='cpu', name=None, permSym=True):
         super(Simple_MLP, self).__init__()
         self.device = device
+        self.permSym = permSym
         if name is None:
             self.name = 'Simple_MLP'
         else:
@@ -141,58 +142,62 @@ class Simple_MLP(nn.Module):
                 m.weight.data.normal_(0,0.01)
 
     def forward(self, x):
-        out = torch.zeros(len(x), 1).to(x.device)
-        for permute in permutations(list(range(int(self.dim/2)))):
-            xIndex = torch.LongTensor(permute).to(x.device)*2
-            yIndex = xIndex + 1
-            index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
-            xPerm = torch.index_select(x, dim=1, index=index)
-            outPerm = self.activation(self.fc1(xPerm))
-            outPerm = self.fc2(outPerm)
-            out = out + outPerm
-
-        # out = self.activation(self.fc1(x))
-        # out = self.fc2(out)
+        if self.permSym:
+            out = torch.zeros(len(x), 1).to(x.device)
+            for permute in permutations(list(range(int(self.dim/2)))):
+                xIndex = torch.LongTensor(permute).to(x.device)*2
+                yIndex = xIndex + 1
+                index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
+                xPerm = torch.index_select(x, dim=1, index=index)
+                outPerm = self.activation(self.fc1(xPerm))
+                outPerm = self.fc2(outPerm)
+                out = out + outPerm
+        else:
+            out = self.activation(self.fc1(x))
+            out = self.fc2(out)
+        
         return out.sum(dim=1)
 
     def grad(self, x):
         '''
         grad u(x)
         '''
-        out = torch.zeros(len(x), self.dim).to(x.device)
-        for permute in permutations(list(range(int(self.dim/2)))):
-            xIndex = torch.LongTensor(permute).to(x.device)*2
-            yIndex = xIndex + 1
-            index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
-            xPerm = torch.index_select(x, dim=1, index=index)
-            outPerm = self.activation_prime(self.fc1(xPerm)) 
-            outPerm = torch.mm(outPerm, torch.diag(self.fc2.weight[0]))  
-            outPerm = torch.mm(outPerm, self.fc1.weight)
-            out = out + outPerm
+        if self.permSym:
+            out = torch.zeros(len(x), self.dim).to(x.device)
+            for permute in permutations(list(range(int(self.dim/2)))):
+                xIndex = torch.LongTensor(permute).to(x.device)*2
+                yIndex = xIndex + 1
+                index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
+                xPerm = torch.index_select(x, dim=1, index=index)
+                outPerm = self.activation_prime(self.fc1(xPerm)) 
+                outPerm = torch.mm(outPerm, torch.diag(self.fc2.weight[0]))  
+                outPerm = torch.mm(outPerm, self.fc1.weight)
+                out = out + outPerm
+        else:
+            out = self.activation_prime(self.fc1(x)) 
+            out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
+            out = torch.mm(out, self.fc1.weight)
         return out
-        # with torch.enable_grad(): 
-        #     forward = self.forward(x)
-        # return torch.autograd.grad(forward, x, grad_outputs=torch.ones(x.shape[0], device=x.device), create_graph=True)[0]
-
 
     def laplacian(self, x):
         '''
         div \cdot grad u(x)
         it is simple enough we code it by hand
         '''
-        out = torch.zeros(len(x), self.dim).to(x.device)
-        for permute in permutations(list(range(int(self.dim/2)))):
-            xIndex = torch.LongTensor(permute).to(x.device)*2
-            yIndex = xIndex + 1
-            index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
-            xPerm = torch.index_select(x, dim=1, index=index)
-            outPerm = self.activation_prime2(self.fc1(xPerm)) 
-            outPerm = torch.mm(outPerm, torch.diag(self.fc2.weight[0]))  
-            outPerm = torch.mm(outPerm, self.fc1.weight**2)
-            out = out + outPerm
+        if self.permSym:
+            out = torch.zeros(len(x), self.dim).to(x.device)
+            for permute in permutations(list(range(int(self.dim/2)))):
+                xIndex = torch.LongTensor(permute).to(x.device)*2
+                yIndex = xIndex + 1
+                index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
+                xPerm = torch.index_select(x, dim=1, index=index)
+                outPerm = self.activation_prime2(self.fc1(xPerm)) 
+                outPerm = torch.mm(outPerm, torch.diag(self.fc2.weight[0]))  
+                outPerm = torch.mm(outPerm, self.fc1.weight**2)
+                out = out + outPerm
+        else: 
+            out = self.activation_prime2(self.fc1(x)) 
+            out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
+            out = torch.mm(out, self.fc1.weight**2)
         return out.sum(dim=1)
-        # grad = self.grad(x)
-        # z = torch.randn(x.shape[0], self.dim, device=x.device)
-        # grad2_z = torch.autograd.grad(grad, x, grad_outputs=z, create_graph=True)[0]
-        # return (grad2_z * z).sum(dim=1)
-    
+        

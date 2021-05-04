@@ -4,12 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from torchdiffeq import odeint
+from itertools import permutations
 
 
 class odeModule(nn.Module):
     # for torchdiffeq
     def __init__(self, net, device='cpu', name=None, checkpoint=False):
-        super().__init__()
+        super(odeModule, self).__init__()
         self.device = device
         if name is None:
             self.name = 'odeModule'
@@ -114,10 +115,25 @@ class MongeAmpereFlow(nn.Module):
         x_error = ((x-x_back).abs().sum()) # check reversibility 
         logp_error = ((logp- logp_back).abs().sum())
         return x_error, logp_error
+    
+    def check_permSym(self, x, logp):
+        z, logp_z = self.integrate(x, logp, sign=-1)
+        logp_error = []
+        for permute in permutations(list(range(int(self.dim/2)))):
+            xIndex = torch.LongTensor(permute).to(z.device)*2
+            yIndex = xIndex + 1
+            index = torch.vstack((xIndex, yIndex)).transpose(1, 0).flatten()
+            zPerm = torch.index_select(z, dim=1, index=index)
+            logpPerm = self.integrate(zPerm, logp_z, sign=1)[1]
+            logp_error.append((logpPerm-logp).abs().sum())
+        return logp_error
+
 
 if __name__=='__main__':
     from net import Simple_MLP
-    net = Simple_MLP(dim=2, hidden_size = 32)
+    numElectron = 4
+    net = Simple_MLP(dim=2*numElectron, hidden_size = 32, permSym=False)
     model = MongeAmpereFlow(net, epsilon=0.1, Nsteps=100)
     x, logp = model.sample(10)
-    print (model.check_reversibility(x, logp))
+    print ('Checking Reversibility, x: %f, logp: %f' % (model.check_reversibility(x, logp)))
+    print ('Checking Permutation Symmetry: ', list(map(float, model.check_permSym(x, logp))))
