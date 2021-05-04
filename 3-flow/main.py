@@ -71,7 +71,7 @@ if __name__=='__main__':
     params = list(model.parameters())
     params = list(filter(lambda p: p.requires_grad, params))
     nparams = sum([np.prod(p.size()) for p in params])
-    print ('total nubmer of trainable parameters:', nparams)
+    print ('total number of trainable parameters:', nparams)
     
     np_losses = []
     for e in range(1000):

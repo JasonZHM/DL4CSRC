@@ -132,8 +132,8 @@ class MongeAmpereFlow(nn.Module):
 if __name__=='__main__':
     from net import Simple_MLP
     numElectron = 4
-    net = Simple_MLP(dim=2*numElectron, hidden_size = 32, permSym=False)
+    net = Simple_MLP(dim=2*numElectron, hidden_size = 32, permSym=True)
     model = MongeAmpereFlow(net, epsilon=0.1, Nsteps=100)
     x, logp = model.sample(10)
     print ('Checking Reversibility, x: %f, logp: %f' % (model.check_reversibility(x, logp)))
-    print ('Checking Permutation Symmetry: ', list(map(float, model.check_permSym(x, logp))))
+    # print ('Checking Permutation Symmetry: ', list(map(float, model.check_permSym(x, logp))))
