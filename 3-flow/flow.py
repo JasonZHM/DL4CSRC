@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
-from torchdiffeq import odeint
+from torchdiffeq import odeint_adjoint as odeint
 from itertools import permutations
 
 

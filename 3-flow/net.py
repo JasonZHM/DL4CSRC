@@ -20,7 +20,7 @@ def sigmoid_prime(x):
     return s*(1.-s)
 
 class MLP(nn.Module):
-    def __init__(self, dim, hidden_size, use_z2=True, device='cpu', name=None):
+    def __init__(self, dim, hidden_size, use_z2=True, device='cpu', name=None, permSym=False):
         super(MLP, self).__init__()
         self.device = device
         if name is None:
