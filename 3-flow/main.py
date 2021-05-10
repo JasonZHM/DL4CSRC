@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('TkAgg')
+
 import torch 
 import torch.nn as nn
 from torch.nn.utils.clip_grad import clip_grad_norm_
