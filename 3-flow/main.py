@@ -12,11 +12,15 @@ from flow import MongeAmpereFlow
 import net 
 import objectives
 
-T = 0.1
+from itertools import permutations
+from scipy.integrate import nquad
+
+beta = 1
 
 if __name__=='__main__':
     import argparse
     parser = argparse.ArgumentParser(description='')
+    parser.add_argument("-e", type=int, default=100, help="num of epochs")
     parser.add_argument("-cuda", type=int, default=-1, help="use GPU")
     parser.add_argument("-net", default='Simple_MLP', choices=['Simple_MLP', 'MLP'], 
                                                        help="network architecture")
@@ -69,21 +73,31 @@ if __name__=='__main__':
     model = MongeAmpereFlow(net, epsilon, Nsteps, device=device)
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr = 1e-2)
+    optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
 
     params = list(model.parameters())
     params = list(filter(lambda p: p.requires_grad, params))
     nparams = sum([np.prod(p.size()) for p in params])
     print ('total number of trainable parameters:', nparams)
+
+    # compute lnZ directly
     
+    Z, Zerr = nquad(lambda *x: torch.exp(-beta*target(torch.tensor(x).reshape(1, -1))),
+                    [[-np.inf, np.inf]]*(2*args.numElectron),
+                    opts={'epsabs': 1})
+    lnZ = np.log(Z)
+    lnZerr = Zerr/Z
+    print('lnZ: %f pm %f' % (lnZ, lnZerr))
+
+
     np_losses = []
-    for e in range(1000):
+    for e in range(args.e):
         x, logp = model.sample(batch_size)
-        loss = logp.mean() + target(x).mean()/T
+        loss = logp.mean() + beta * target(x).mean()
         energy = target(x).mean()
         
         model.zero_grad()
-        energy.backward()
+        loss.backward()
         optimizer.step()
 
         # clip_grad_norm_(params, 1e1)
@@ -115,5 +129,6 @@ if __name__=='__main__':
     np_losses = np.array(np_losses)
     fig = plt.figure(figsize=(8,8), facecolor='white')
     plt.ioff()
-    plt.plot(np_losses[50:])
+    plt.plot(np_losses)
+    plt.hlines(-lnZ, 0, len(np_losses), colors='r', linestyles = "dashed")
     plt.show()

@@ -111,7 +111,7 @@ class Simple_MLP(nn.Module):
     Single hidden layer MLP 
     with handcoded grad and laplacian function
     '''
-    def __init__(self, dim, hidden_size, use_z2=False, device='cpu', name=None, permSym=True):
+    def __init__(self, dim, hidden_size, use_z2=False, device='cpu', name=None, permSym=False):
         super(Simple_MLP, self).__init__()
         self.device = device
         self.permSym = permSym

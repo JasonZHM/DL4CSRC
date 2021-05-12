@@ -46,26 +46,26 @@ class MongeAmpereFlow(nn.Module):
             self.name = name
         self.net = net 
         self.dim = net.dim
-        # self.epsilon = epsilon 
+        self.epsilon = epsilon 
         self.Nsteps = Nsteps
         self.checkpoint = checkpoint
         self.odeModule = odeModule(net, device, checkpoint=checkpoint)
 
     def integrate(self, x, logp, sign=1, epsilon=None, Nsteps=None):
         #default values
-        # if epsilon is None:
-        #     epsilon = self.epsilon 
+        if epsilon is None:
+            epsilon = self.epsilon 
         if Nsteps is None:
             Nsteps = self.Nsteps
 
-        #integrate ODE for x and logp(x)
+        # integrate ODE for x and logp(x)
         # def ode(x):
         #     if self.checkpoint:
         #         return sign*epsilon*checkpoint(self.net.grad, x), -sign*epsilon*checkpoint(self.net.laplacian, x)
         #     else:
         #         return sign*epsilon*self.net.grad(x), -sign*epsilon*self.net.laplacian(x)
 
-        #rk4 Runge-Kutta-4
+        # rk4 Runge-Kutta-4
         # for step in range(Nsteps):
         #     k1_x, k1_logp = ode(x)
         #     k2_x, k2_logp = ode(x+k1_x/2)
@@ -86,7 +86,7 @@ class MongeAmpereFlow(nn.Module):
         x_t, logp_t = odeint(
             self.odeModule,
             (x, logp),
-            torch.tensor([0, sign*Nsteps]).type(torch.float32).to(self.device),
+            torch.tensor([0, sign*Nsteps], requires_grad=True, dtype=torch.float32).to(self.device),
             atol=1e-7,
             rtol=1e-7,
             method='dopri5',
