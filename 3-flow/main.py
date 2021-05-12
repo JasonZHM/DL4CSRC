@@ -28,6 +28,7 @@ if __name__=='__main__':
                         choices=['Ring2D', 'Ring5', 'Wave', 'Gaussian', 'Mog2', 'electron'], help="target distribution")
     parser.add_argument("-numElectron", type=int, default=2)
     parser.add_argument("-testPermSym", type=bool, default=False)
+    parser.add_argument("-computelnZ", type=bool, default=False)
     args = parser.parse_args()
     device = torch.device("cpu" if args.cuda<0 else "cuda:"+str(args.cuda))
 
@@ -81,13 +82,13 @@ if __name__=='__main__':
     print ('total number of trainable parameters:', nparams)
 
     # compute lnZ directly
-    
-    Z, Zerr = nquad(lambda *x: torch.exp(-beta*target(torch.tensor(x).reshape(1, -1))),
-                    [[-np.inf, np.inf]]*(2*args.numElectron),
-                    opts={'epsabs': 1})
-    lnZ = np.log(Z)
-    lnZerr = Zerr/Z
-    print('lnZ: %f pm %f' % (lnZ, lnZerr))
+    if args.computelnZ:
+        Z, Zerr = nquad(lambda *x: torch.exp(-beta*target(torch.tensor(x).reshape(1, -1))),
+                        [[-np.inf, np.inf]]*(2*args.numElectron),
+                        opts={'epsabs': 1})
+        lnZ = np.log(Z)
+        lnZerr = Zerr/Z
+        print('lnZ: %f pm %f' % (lnZ, lnZerr))
 
 
     np_losses = []
@@ -130,5 +131,6 @@ if __name__=='__main__':
     fig = plt.figure(figsize=(8,8), facecolor='white')
     plt.ioff()
     plt.plot(np_losses)
-    plt.hlines(-lnZ, 0, len(np_losses), colors='r', linestyles = "dashed")
+    if args.computelnZ:
+        plt.hlines(-lnZ, 0, len(np_losses), colors='r', linestyles = "dashed")
     plt.show()
