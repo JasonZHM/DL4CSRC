@@ -68,13 +68,13 @@ if __name__=='__main__':
     plt.show(block=False)
 
     if args.target=='electron':
-        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=128, device=device, permSym=True)
+        net = getattr(net, args.net)(dim=2*args.numElectron, hidden_size=32, device=device, permSym=True)
     else: 
         net = getattr(net, args.net)(dim=2, hidden_size=32, device=device)
     model = MongeAmpereFlow(net, epsilon, Nsteps, device=device)
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr = 1e-2)
 
     params = list(model.parameters())
     params = list(filter(lambda p: p.requires_grad, params))
@@ -105,9 +105,6 @@ if __name__=='__main__':
         
         with torch.no_grad():
             print (e, loss.item(), energy.item())
-            if args.testPermSym:
-                xtest, logptest = model.sample(10)
-                print ('Checking Permutation Symmetry: ', list(map(float, model.check_permSym(xtest, logptest))))
             
             np_losses.append([loss.item()])
 
@@ -127,6 +124,11 @@ if __name__=='__main__':
             plt.draw()
             plt.pause(0.01)
 
+
+    if args.testPermSym:
+        xtest, logptest = model.sample(10)
+        print ('Checking Permutation Symmetry: ', list(map(float, model.check_permSym(xtest, logptest))))
+        
     np_losses = np.array(np_losses)
     fig = plt.figure(figsize=(8,8), facecolor='white')
     plt.ioff()

@@ -20,7 +20,7 @@ def sigmoid_prime(x):
     return s*(1.-s)
 
 class MLP(nn.Module):
-    def __init__(self, dim, hidden_size, use_z2=True, device='cpu', name=None, permSym=False):
+    def __init__(self, dim, hidden_size, use_z2=False, device='cpu', name=None, permSym=False):
         super(MLP, self).__init__()
         self.device = device
         if name is None:
@@ -178,6 +178,10 @@ class Simple_MLP(nn.Module):
             out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
             out = torch.mm(out, self.fc1.weight)
         return out
+        with torch.enable_grad(): 
+            forward = self.forward(x)
+        return torch.autograd.grad(forward, x, grad_outputs=torch.ones(x.shape[0], device=x.device), create_graph=True)[0]
+
 
     def laplacian(self, x):
         '''
@@ -200,4 +204,8 @@ class Simple_MLP(nn.Module):
             out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
             out = torch.mm(out, self.fc1.weight**2)
         return out.sum(dim=1)
+        # grad = self.grad(x)
+        # z = torch.randn(x.shape[0], self.dim, device=x.device)
+        # grad2_z = torch.autograd.grad(grad, x, grad_outputs=z, create_graph=True)[0]
+        # return (grad2_z * z).sum(dim=1)
         

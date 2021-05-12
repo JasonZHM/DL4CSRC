@@ -22,6 +22,7 @@ class odeModule(nn.Module):
     def forward(self, t, states):
         # states=(x, logp)
         x = states[0]
+        x.requires_grad_()
         logp = states[1]
         if self.checkpoint:
             return self.checkpoint(self.net.grad, x), -self.checkpoint(self.net.laplacian, x)
@@ -49,7 +50,7 @@ class MongeAmpereFlow(nn.Module):
         self.epsilon = epsilon 
         self.Nsteps = Nsteps
         self.checkpoint = checkpoint
-        self.odeModule = odeModule(net, device, checkpoint=checkpoint)
+        self.odeModule = odeModule(net, device, checkpoint=checkpoint).to(self.device)
 
     def integrate(self, x, logp, sign=1, epsilon=None, Nsteps=None):
         #default values
@@ -86,7 +87,7 @@ class MongeAmpereFlow(nn.Module):
         x_t, logp_t = odeint(
             self.odeModule,
             (x, logp),
-            torch.tensor([0, sign*Nsteps], requires_grad=True, dtype=torch.float32).to(self.device),
+            torch.tensor([0.0, sign*Nsteps]),
             atol=1e-7,
             rtol=1e-7,
             method='dopri5',
@@ -97,7 +98,7 @@ class MongeAmpereFlow(nn.Module):
     def sample(self, batch_size):
         #initial value from Gaussian
         x = torch.randn(batch_size, self.dim, device=self.device, requires_grad=True)
-        logp = -0.5 * x.pow(2).add(math.log(2 * math.pi)).sum(1) 
+        logp = -0.5 * x.pow(2).add(math.log(2 * math.pi)).sum(1)
         return self.integrate(x, logp, sign=1)
 
     def nll(self, x):
