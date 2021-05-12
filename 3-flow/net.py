@@ -123,6 +123,7 @@ class Simple_MLP(nn.Module):
         self.dim = dim
         self.fc1 = nn.Linear(dim, hidden_size, bias=not use_z2)
         self.fc2 = nn.Linear(hidden_size, 1, bias=False)
+        self.autograd = True
 
         if use_z2:
             self.activation = lncosh
@@ -162,6 +163,12 @@ class Simple_MLP(nn.Module):
         '''
         grad u(x)
         '''
+        if self.autograd:
+            with torch.enable_grad(): 
+                forward = self.forward(x)
+            return torch.autograd.grad(forward, x, grad_outputs=torch.ones(x.shape[0], device=x.device), create_graph=True)[0]
+
+
         if self.permSym:
             out = torch.zeros(len(x), self.dim).to(x.device)
             for permute in permutations(list(range(int(self.dim/2)))):
@@ -178,16 +185,19 @@ class Simple_MLP(nn.Module):
             out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
             out = torch.mm(out, self.fc1.weight)
         return out
-        with torch.enable_grad(): 
-            forward = self.forward(x)
-        return torch.autograd.grad(forward, x, grad_outputs=torch.ones(x.shape[0], device=x.device), create_graph=True)[0]
-
+        
 
     def laplacian(self, x):
         '''
         div \cdot grad u(x)
         it is simple enough we code it by hand
         '''
+        if self.autograd:
+            grad = self.grad(x)
+            z = torch.randn(x.shape[0], self.dim, device=x.device)
+            grad2_z = torch.autograd.grad(grad, x, grad_outputs=z, create_graph=True)[0]
+            return (grad2_z * z).sum(dim=1)
+
         if self.permSym:
             out = torch.zeros(len(x), self.dim).to(x.device)
             for permute in permutations(list(range(int(self.dim/2)))):
@@ -204,8 +214,5 @@ class Simple_MLP(nn.Module):
             out = torch.mm(out, torch.diag(self.fc2.weight[0]))  
             out = torch.mm(out, self.fc1.weight**2)
         return out.sum(dim=1)
-        # grad = self.grad(x)
-        # z = torch.randn(x.shape[0], self.dim, device=x.device)
-        # grad2_z = torch.autograd.grad(grad, x, grad_outputs=z, create_graph=True)[0]
-        # return (grad2_z * z).sum(dim=1)
+        
         

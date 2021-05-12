@@ -87,7 +87,7 @@ class MongeAmpereFlow(nn.Module):
         x_t, logp_t = odeint(
             self.odeModule,
             (x, logp),
-            torch.tensor([0.0, sign*Nsteps]),
+            torch.tensor([0.0, sign*Nsteps], device=x.device),
             atol=1e-7,
             rtol=1e-7,
             method='dopri5',
